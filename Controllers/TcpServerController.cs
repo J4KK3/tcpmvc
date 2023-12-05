@@ -98,7 +98,6 @@ namespace tcpmvc.Controllers
             try
             {
                 var clients = _tcpServer.GetAllClientIDs();
-                Console.WriteLine($"Clients: {string.Join(", ", clients)}");
                 return Ok(clients);
             }
             catch (Exception ex)
