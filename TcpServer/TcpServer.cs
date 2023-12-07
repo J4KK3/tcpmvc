@@ -7,6 +7,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
+using tcpmvc.Migrations;
+using tcpmvc.Models;
 
 public class TcpServer
 {
@@ -50,7 +52,6 @@ public class TcpServer
     {
         cts.Cancel();
 
-        // Close all client sockets
         foreach (var client in clients.Values)
         {
             client.Close();
@@ -60,7 +61,7 @@ public class TcpServer
         if (serverSocket != null)
         {
             serverSocket.Close();
-            serverSocket.Dispose();  // Dispose of the server socket
+            serverSocket.Dispose();
             Console.WriteLine("TCP Server stopped.");
         }
     }
@@ -78,11 +79,21 @@ public class TcpServer
                 int bytesRead = await clientSocket.ReceiveAsync(new ArraySegment<byte>(buffer), SocketFlags.None);
                 if (bytesRead == 0) break;
 
-                string receivedHex = BitConverter.ToString(buffer, 0, bytesRead).Replace("-", "");
+                string receivedMessage = Encoding.UTF8.GetString(buffer, 0, bytesRead);
                 
-                Console.WriteLine($"Received from client {clientHashCode} (Hex): " + receivedHex);
+                Device device = new Device
+                {
+                    Connection = clientHashCode,
+                    LastMessage = receivedMessage,
+                    LastMessageTime = DateTime.Now,
+                    LastUpdated = DateTime.Now
+                };
+                using var dbContext = new DeviceDbContext();
+                dbContext.Device.Add(device);
+                dbContext.SaveChanges();
 
-                string receivedMessage = Encoding.ASCII.GetString(buffer, 0, bytesRead);
+                Console.WriteLine($"Received from client {clientHashCode}: " + receivedMessage);
+                
             }
 
             clientSocket.Shutdown(SocketShutdown.Both);
@@ -95,13 +106,13 @@ public class TcpServer
             clients.TryRemove(clientHashCode, out _);
         }
     }
-    public static void SendMessageToClient(int clientID, string hexMessage)
+    public static void SendMessageToClient(int clientID, string message)
     {
         if (clients.TryGetValue(clientID, out Socket? clientSocket))
         {
-            byte[] messageBytes = HexStringToByteArray(hexMessage);
+            byte[] messageBytes = Encoding.UTF8.GetBytes(message);
             clientSocket.SendAsync(new ArraySegment<byte>(messageBytes), SocketFlags.None);
-            Console.WriteLine($"Sent message to client {clientID} (Hex): {hexMessage}");
+            Console.WriteLine($"Sent message to client {clientID}: {message}");
         }
         else
         {
@@ -109,19 +120,9 @@ public class TcpServer
         }
     }
 
-    private static byte[] HexStringToByteArray(string hex)
-    {
-        int length = hex.Length;
-        byte[] bytes = new byte[length / 2];
-        for (int i = 0; i < length; i += 2)
-        {
-            bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
-        }
-        return bytes;
-    }
-
     public IEnumerable<int> GetAllClientIDs()
     {
         return clients.Keys;
     }   
+
 }

@@ -2,6 +2,7 @@ using Core.TCPServer;
 using Microsoft.AspNetCore.Mvc;
 using tcpmvc.Services;
 
+
 namespace tcpmvc.Controllers
 {
     [ApiController]
@@ -9,6 +10,7 @@ namespace tcpmvc.Controllers
     public class TcpServerController : ControllerBase
     {
         private TcpServer _tcpServer = new TcpServer();
+        private DeviceDbContext _context = new DeviceDbContext();
 
         [HttpPost("start")]
         public IActionResult StartServer()
@@ -106,5 +108,62 @@ namespace tcpmvc.Controllers
                 return StatusCode(500, $"Failed to get clients: {ex.Message}");
             }
         }
+
+        [HttpGet("devices")]
+        public IActionResult GetDevices()
+        {
+            if (!IsServerRunningService.IsServerRunning())
+            {
+                Console.WriteLine("Server is not running.");
+                return BadRequest("Server is not running.");
+            }
+
+            try
+            {
+                if (_context?.Device == null)
+                {
+                    Console.WriteLine("Device context is null.");
+                    return StatusCode(500, "Device context is null.");
+                }
+                var devices = _context.Device.ToList();
+                return Ok(devices);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to get devices: {ex.Message}");
+                return StatusCode(500, $"Failed to get devices: {ex.Message}");
+            }
+        }
+
+    [HttpGet("devices/{Connection}")]
+    public IActionResult GetDevices(int Connection)
+    {
+        if (!IsServerRunningService.IsServerRunning())
+        {
+            Console.WriteLine("Server is not running.");
+            return BadRequest("Server is not running.");
+        }
+
+        try
+        {
+            if (_context?.Device == null)
+            {
+                Console.WriteLine("Device context is null.");
+                return StatusCode(500, "Device context is null.");
+            }
+            var devices = _context.Device.Where(x => x.Connection == Connection).ToList();
+            if (!devices.Any())
+            {
+                return NotFound("No devices found with the specified connection.");
+            }
+
+            return Ok(devices);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to get devices: {ex.Message}");
+            return StatusCode(500, $"Failed to get devices: {ex.Message}");
+        }
+    }
     }
 }
